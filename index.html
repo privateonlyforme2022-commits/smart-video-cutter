@@ -5,6 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Smart Video Cutter</title>
+  <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js"></script>
   <style>
     body {
       background: #171225;
@@ -47,8 +48,9 @@
     <input type="file" id="videoInput" accept="video/*">
 
     <video id="preview" controls></video>
+<div id="status">Choose a video to begin.</div>
 
-    <div id="status">Choose a video to begin.</div>
+<button id="testFFmpeg">Test FFmpeg Engine</button>
   </div>
 
   <script>
@@ -73,6 +75,29 @@
       status.textContent =
         "✅ Video selected: " + file.name;
     });
-  </script>
+ const testFFmpeg = document.getElementById("testFFmpeg");
+
+testFFmpeg.addEventListener("click", async function () {
+  testFFmpeg.disabled = true;
+  status.textContent = "Loading FFmpeg engine...";
+
+  try {
+    const ffmpeg = FFmpeg.createFFmpeg({
+      log: true,
+      corePath:
+        "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js"
+    });
+
+    await ffmpeg.load();
+
+    status.textContent = "✅ FFmpeg engine loaded successfully!";
+  } catch (error) {
+    console.error(error);
+    status.textContent =
+      "❌ FFmpeg failed to load: " + error.message;
+  }
+
+  testFFmpeg.disabled = false;
+}); </script>
 </body>
 </html>
