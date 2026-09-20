@@ -92,14 +92,31 @@
   </div>
 
   <script>
-    const { createFFmpeg, fetchFile } = FFmpeg;
+    let ffmpeg = null;
+let fetchFile = null;
 
-    const ffmpeg = createFFmpeg({
+    async function loadFFmpeg() {
+  if (!window.FFmpeg) {
+    throw new Error("FFmpeg library failed to load.");
+  }
+
+  const { createFFmpeg, fetchFile: ffmpegFetchFile } = window.FFmpeg;
+
+  fetchFile = ffmpegFetchFile;
+
+  if (!ffmpeg) {
+    ffmpeg = createFFmpeg({
       log: true,
       corePath:
-        corePath:
-  "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js"
+        "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js"
     });
+  }
+
+  if (!ffmpeg.isLoaded()) {
+    status.textContent = "Loading FFmpeg...";
+    await ffmpeg.load();
+  }
+}
 
     const videoInput = document.getElementById("videoInput");
     const preview = document.getElementById("preview");
