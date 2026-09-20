@@ -1,17 +1,16 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Smart Video Cutter</title>
-<script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js"></script>
   <style>
     body {
-      margin: 0;
-      padding: 20px;
       background: #171225;
       color: white;
       font-family: Arial, sans-serif;
+      padding: 20px;
     }
 
     .container {
@@ -27,47 +26,16 @@
       text-align: center;
     }
 
-    input, button {
-      width: 100%;
-      box-sizing: border-box;
-      margin-top: 12px;
-      padding: 14px;
-      border-radius: 10px;
-      border: none;
-    }
-
-    button {
-      background: #9146ff;
-      color: white;
-      font-weight: bold;
-      cursor: pointer;
-    }
-
-    button:disabled {
-      background: #555;
-    }
-
     video {
       width: 100%;
-      margin-top: 15px;
+      margin-top: 20px;
       border-radius: 12px;
+      display: none;
     }
 
     #status {
       margin-top: 15px;
       color: #f4d68a;
-      white-space: pre-wrap;
-    }
-
-    .clip {
-      background: #382951;
-      padding: 12px;
-      margin-top: 10px;
-      border-radius: 10px;
-    }
-
-    a {
-      color: #80eaff;
     }
   </style>
 </head>
@@ -80,205 +48,31 @@
 
     <video id="preview" controls></video>
 
-    <label>Clip duration (minutes)</label>
-    <input type="number" id="duration" value="3" min="1">
-
-    <button id="startBtn" disabled>
-      Generate Downloadable Clips
-    </button>
-
     <div id="status">Choose a video to begin.</div>
-    <div id="results"></div>
   </div>
 
   <script>
-    let ffmpeg = null;
-let fetchFile = null;
-
-    async function loadFFmpeg() {
-  if (!window.FFmpeg) {
-    throw new Error("FFmpeg library failed to load.");
-  }
-
-  const { createFFmpeg, fetchFile: ffmpegFetchFile } = window.FFmpeg;
-
-  fetchFile = ffmpegFetchFile;
-
-  if (!ffmpeg) {
-    ffmpeg = createFFmpeg({
-      log: true,
-      corePath:
-        "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js"
-    });
-  }
-
-  if (!ffmpeg.isLoaded()) {
-    status.textContent = "Loading FFmpeg engine...";
-    await ffmpeg.load();
-  }
-} {
-  if (!window.FFmpeg) {
-    throw new Error("FFmpeg library failed to load.");
-  }
-
-  const { createFFmpeg, fetchFile: ffmpegFetchFile } = window.FFmpeg;
-
-  fetchFile = ffmpegFetchFile;
-
-  if (!ffmpeg) {
-    ffmpeg = createFFmpeg({
-      log: true,
-      corePath:
-        "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js"
-    });
-  }
-
-  if (!ffmpeg.isLoaded()) {
-    status.textContent = "Loading FFmpeg...";
-    await ffmpeg.load();
-  }
-}
-
     const videoInput = document.getElementById("videoInput");
     const preview = document.getElementById("preview");
-    const startBtn = document.getElementById("startBtn");
     const status = document.getElementById("status");
-    const results = document.getElementById("results");
 
-    let selectedFile = null;
+    videoInput.addEventListener("change", function () {
+      const file = this.files[0];
 
-    videoInput.addEventListener("change", () => {
-      selectedFile = videoInput.files[0];
-
-      if (!selectedFile) return;
-
-      preview.src = URL.createObjectURL(selectedFile);
-      startBtn.disabled = false;
-      results.innerHTML = "";
-      status.textContent = "Video selected. Ready to process.";
-    });
-
-    async function loadFFmpeg() {
-      if (!ffmpeg.isLoaded()) {
-        status.textContent =
-          "Loading video processing engine...\nPlease wait.";
-        await ffmpeg.load();
-      }
-    }
-
-    startBtn.addEventListener("click", async () => {
-      if (!selectedFile) {
-        alert("Please select a video first.");
+      if (!file) {
+        status.textContent = "No video selected.";
         return;
       }
 
-      const durationMinutes = Number(
-        document.getElementById("duration").value
-      );
+      const videoURL = URL.createObjectURL(file);
 
-      if (!durationMinutes || durationMinutes < 1) {
-        alert("Enter a valid duration.");
-        return;
-      }
+      preview.src = videoURL;
+      preview.style.display = "block";
+      preview.load();
 
-      startBtn.disabled = true;
-      results.innerHTML = "";
-
-      try {
-        await loadFFmpeg();
-
-        status.textContent =
-          "Preparing video...\nThis may take time on mobile.";
-
-        const inputName = "input.mp4";
-
-        ffmpeg.FS(
-          "writeFile",
-          inputName,
-          await fetchFile(selectedFile)
-        );
-
-        const totalSeconds = preview.duration;
-        const clipSeconds = durationMinutes * 60;
-        const totalClips = Math.ceil(totalSeconds / clipSeconds);
-
-        for (let i = 0; i < totalClips; i++) {
-          const startTime = i * clipSeconds;
-          const outputName = `clip_${i + 1}.mp4`;
-
-          status.textContent =
-            `Processing clip ${i + 1} of ${totalClips}...\n` +
-            `Start time: ${formatTime(startTime)}`;
-
-          await ffmpeg.run(
-            "-ss",
-            String(startTime),
-            "-i",
-            inputName,
-            "-t",
-            String(clipSeconds),
-            "-c",
-            "copy",
-            "-avoid_negative_ts",
-            "make_zero",
-            outputName
-          );
-
-          const data = ffmpeg.FS("readFile", outputName);
-
-          const blob = new Blob([data.buffer], {
-            type: "video/mp4"
-          });
-
-          const url = URL.createObjectURL(blob);
-
-          const clipBox = document.createElement("div");
-          clipBox.className = "clip";
-
-          clipBox.innerHTML = `
-            <strong>Clip ${i + 1}</strong><br>
-            <a href="${url}" download="${outputName}">
-              ⬇️ Download ${outputName}
-            </a>
-          `;
-
-          results.appendChild(clipBox);
-
-          try {
-            ffmpeg.FS("unlink", outputName);
-          } catch (error) {
-            console.log("Cleanup skipped:", error);
-          }
-        }
-
-        status.textContent =
-          "✅ All clips generated successfully!";
-      } catch (error) {
-        console.error(error);
-
-        status.textContent =
-          "❌ Processing failed.\n\n" +
-          "Possible reasons:\n" +
-          "• Video is too large for your phone\n" +
-          "• Browser memory limitation\n" +
-          "• FFmpeg loading error\n\n" +
-          "Try a shorter video first.";
-      }
-
-      startBtn.disabled = false;
+      status.textContent =
+        "✅ Video selected: " + file.name;
     });
-
-    function formatTime(seconds) {
-      const minutes = Math.floor(seconds / 60);
-      const remainingSeconds = Math.floor(seconds % 60);
-
-      return (
-        String(minutes).padStart(2, "0") +
-        ":" +
-        String(remainingSeconds).padStart(2, "0")
-      );
-    }
   </script>
 </body>
 </html>
-
