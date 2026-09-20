@@ -113,6 +113,27 @@ let fetchFile = null;
   }
 
   if (!ffmpeg.isLoaded()) {
+    status.textContent = "Loading FFmpeg engine...";
+    await ffmpeg.load();
+  }
+} {
+  if (!window.FFmpeg) {
+    throw new Error("FFmpeg library failed to load.");
+  }
+
+  const { createFFmpeg, fetchFile: ffmpegFetchFile } = window.FFmpeg;
+
+  fetchFile = ffmpegFetchFile;
+
+  if (!ffmpeg) {
+    ffmpeg = createFFmpeg({
+      log: true,
+      corePath:
+        "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js"
+    });
+  }
+
+  if (!ffmpeg.isLoaded()) {
     status.textContent = "Loading FFmpeg...";
     await ffmpeg.load();
   }
