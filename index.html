@@ -1,333 +1,246 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Smart Video Cutter</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart Video Cutter</title>
+  <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js"></script>
+  <script src="https://unpkg.com/@ffmpeg/util@0.11.1/dist/umd/index.js"></script>
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      background: #171225;
+      color: white;
+      font-family: Arial, sans-serif;
+    }
 
-<style>
-*{box-sizing:border-box}
-body{
- margin:0;padding:15px;
- font-family:Arial,sans-serif;
- background:#10111c;color:#fff
-}
-.app{max-width:850px;margin:auto}
-header{
- text-align:center;padding:25px 12px;
- border-radius:20px;
- background:linear-gradient(135deg,#29215a,#762b70)
-}
-h1{margin:0;color:#f3c7ff}
-.subtitle{color:#ddd0ed}
-.card{
- background:#1b1d2c;padding:18px;
- margin-top:18px;border-radius:16px;
- border:1px solid #41435c
-}
-h2{color:#e4a7ff;margin-top:0}
-label{display:block;margin:12px 0 6px;color:#d9cde9}
-input,button{
- width:100%;padding:13px;
- border-radius:9px;border:1px solid #55506c;
- font-size:15px
-}
-input{
- background:#10111b;color:#fff
-}
-button{
- margin-top:12px;background:#9b4de0;
- color:#fff;border:0;font-weight:bold
-}
-button:disabled{opacity:.4}
-.secondary{background:#41435d}
-video{width:100%;margin-top:15px;border-radius:10px}
-.info{
- margin-top:12px;padding:12px;
- border-radius:10px;background:#10111b;
- white-space:pre-wrap
-}
-.clip{
- margin-top:10px;padding:12px;
- border:1px solid #48415d;border-radius:10px
-}
-.clip button{background:#5365c9}
-.small{font-size:13px;color:#b9aecb}
-</style>
+    .container {
+      max-width: 600px;
+      margin: auto;
+      background: #251b3d;
+      padding: 20px;
+      border-radius: 18px;
+    }
+
+    h1 {
+      color: #d7a7ff;
+      text-align: center;
+    }
+
+    input, button {
+      width: 100%;
+      box-sizing: border-box;
+      margin-top: 12px;
+      padding: 14px;
+      border-radius: 10px;
+      border: none;
+    }
+
+    button {
+      background: #9146ff;
+      color: white;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      background: #555;
+    }
+
+    video {
+      width: 100%;
+      margin-top: 15px;
+      border-radius: 12px;
+    }
+
+    #status {
+      margin-top: 15px;
+      color: #f4d68a;
+      white-space: pre-wrap;
+    }
+
+    .clip {
+      background: #382951;
+      padding: 12px;
+      margin-top: 10px;
+      border-radius: 10px;
+    }
+
+    a {
+      color: #80eaff;
+    }
+  </style>
 </head>
 
 <body>
-<div class="app">
+  <div class="container">
+    <h1>🎬 Smart Video Cutter</h1>
 
-<header>
-<h1>✂️ Smart Video Cutter</h1>
-<p class="subtitle">Split long videos into short clips</p>
-</header>
+    <input type="file" id="videoInput" accept="video/*">
 
-<section class="card">
-<h2>📁 Select Video</h2>
+    <video id="preview" controls></video>
 
-<label>Choose a video from your phone</label>
-<input id="videoFile" type="file" accept="video/*">
+    <label>Clip duration (minutes)</label>
+    <input type="number" id="duration" value="3" min="1">
 
-<video id="preview" controls hidden></video>
+    <button id="startBtn" disabled>
+      Generate Downloadable Clips
+    </button>
 
-<div id="videoInfo" class="info">
-No video selected.
-</div>
-</section>
+    <div id="status">Choose a video to begin.</div>
+    <div id="results"></div>
+  </div>
 
-<section class="card">
-<h2>⚙️ Clip Settings</h2>
+  <script>
+    const { createFFmpeg, fetchFile } = FFmpeg;
 
-<label>Clip Duration (minutes)</label>
-<input id="clipMinutes" type="number" min="1" value="3">
+    const ffmpeg = createFFmpeg({
+      log: true,
+      corePath:
+        "https://unpkg.com/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js"
+    });
 
-<button id="planButton" onclick="planClips()" disabled>
-Create Clip Plan
-</button>
+    const videoInput = document.getElementById("videoInput");
+    const preview = document.getElementById("preview");
+    const startBtn = document.getElementById("startBtn");
+    const status = document.getElementById("status");
+    const results = document.getElementById("results");
 
-<div id="planOutput" class="info">
-Your clip plan will appear here.
-</div>
-</section>
+    let selectedFile = null;
 
-<section class="card">
-<h2>🎬 Generate Clips</h2>
+    videoInput.addEventListener("change", () => {
+      selectedFile = videoInput.files[0];
 
-<p class="small">
-This browser prototype attempts to record each section
-using the video's capture stream.
-</p>
+      if (!selectedFile) return;
 
-<button id="generateButton" onclick="generateClips()" disabled>
-Generate Video Clips
-</button>
+      preview.src = URL.createObjectURL(selectedFile);
+      startBtn.disabled = false;
+      results.innerHTML = "";
+      status.textContent = "Video selected. Ready to process.";
+    });
 
-<div id="status" class="info">
-Waiting for video.
-</div>
-
-<div id="clips"></div>
-</section>
-
-</div>
-
-<script>
-let selectedFile=null;
-let video=document.getElementById("preview");
-let duration=0;
-let clipList=[];
-
-const fileInput=document.getElementById("videoFile");
-const planButton=document.getElementById("planButton");
-const generateButton=document.getElementById("generateButton");
-
-fileInput.addEventListener("change",function(){
- selectedFile=this.files[0];
-
- if(!selectedFile)return;
-
- const url=URL.createObjectURL(selectedFile);
- video.src=url;
- video.hidden=false;
-
- video.onloadedmetadata=function(){
-  duration=video.duration;
-
-  document.getElementById("videoInfo").textContent=
-  "File: "+selectedFile.name+
-  "\nDuration: "+formatTime(duration)+
-  "\nSize: "+(selectedFile.size/1024/1024).toFixed(2)+" MB";
-
-  planButton.disabled=false;
- };
-});
-
-function formatTime(seconds){
- let h=Math.floor(seconds/3600);
- let m=Math.floor((seconds%3600)/60);
- let s=Math.floor(seconds%60);
-
- return (h?h+"h ":"")+
- String(m).padStart(2,"0")+"m "+
- String(s).padStart(2,"0")+"s";
-}
-
-function planClips(){
- if(!duration){
-  alert("Please select a video first.");
-  return;
- }
-
- let minutes=parseFloat(
-  document.getElementById("clipMinutes").value
- );
-
- if(!minutes||minutes<=0){
-  alert("Enter a valid clip duration.");
-  return;
- }
-
- let clipSeconds=minutes*60;
- clipList=[];
-
- for(let start=0;start<duration;start+=clipSeconds){
-  clipList.push({
-   start:start,
-   end:Math.min(start+clipSeconds,duration)
-  });
- }
-
- let output=
- "Total clips: "+clipList.length+
- "\nClip duration: "+minutes+" minutes\n\n";
-
- clipList.forEach((clip,index)=>{
-  output+="Clip "+(index+1)+": "+
-  formatTime(clip.start)+" → "+
-  formatTime(clip.end)+"\n";
- });
-
- document.getElementById("planOutput").textContent=output;
- generateButton.disabled=false;
-}
-
-async function generateClips(){
- if(!selectedFile||clipList.length===0){
-  alert("Create a clip plan first.");
-  return;
- }
-
- const clipsContainer=document.getElementById("clips");
- clipsContainer.innerHTML="";
-
- document.getElementById("status").textContent=
- "Preparing video clips...";
-
- if(!video.captureStream){
-  document.getElementById("status").textContent=
-  "Your browser does not support video capture. "+
-  "Try a modern Chrome browser.";
-  return;
- }
-
- let stream=video.captureStream();
-
- for(let i=0;i<clipList.length;i++){
-  let clip=clipList[i];
-
-  document.getElementById("status").textContent=
-  "Processing clip "+(i+1)+" of "+clipList.length;
-
-  try{
-   let blob=await recordClip(
-    stream,
-    clip.start,
-    clip.end
-   );
-
-   createDownload(blob,i+1);
-  }catch(error){
-   console.error(error);
-
-   let errorBox=document.createElement("div");
-   errorBox.className="clip";
-   errorBox.textContent=
-   "Clip "+(i+1)+" failed: "+error.message;
-   clipsContainer.appendChild(errorBox);
-  }
- }
-
- document.getElementById("status").textContent=
- "Processing finished. Check the clip download buttons.";
-}
-
-function recordClip(stream,start,end){
- return new Promise(async(resolve,reject)=>{
-  let chunks=[];
-
-  let recorder;
-
-  try{
-   recorder=new MediaRecorder(stream);
-  }catch(error){
-   reject(error);
-   return;
-  }
-
-  recorder.ondataavailable=function(event){
-   if(event.data.size>0){
-    chunks.push(event.data);
-   }
-  };
-
-  recorder.onerror=function(event){
-   reject(event.error||new Error("Recording failed"));
-  };
-
-  recorder.onstop=function(){
-   resolve(new Blob(chunks,{type:"video/webm"}));
-  };
-
-  try{
-   video.currentTime=start;
-   await waitForSeek();
-
-   recorder.start();
-
-   video.play();
-
-   let stopTimer=setInterval(()=>{
-    if(video.currentTime>=end||video.ended){
-     clearInterval(stopTimer);
-     video.pause();
-
-     if(recorder.state!=="inactive"){
-      recorder.stop();
-     }
+    async function loadFFmpeg() {
+      if (!ffmpeg.isLoaded()) {
+        status.textContent =
+          "Loading video processing engine...\nPlease wait.";
+        await ffmpeg.load();
+      }
     }
-   },200);
-  }catch(error){
-   reject(error);
-  }
- });
-}
 
-function waitForSeek(){
- return new Promise(resolve=>{
-  if(video.readyState>=2){
-   resolve();
-  }else{
-   video.addEventListener("loadeddata",resolve,{once:true});
-  }
- });
-}
+    startBtn.addEventListener("click", async () => {
+      if (!selectedFile) {
+        alert("Please select a video first.");
+        return;
+      }
 
-function createDownload(blob,number){
- let url=URL.createObjectURL(blob);
+      const durationMinutes = Number(
+        document.getElementById("duration").value
+      );
 
- let box=document.createElement("div");
- box.className="clip";
+      if (!durationMinutes || durationMinutes < 1) {
+        alert("Enter a valid duration.");
+        return;
+      }
 
- let title=document.createElement("strong");
- title.textContent="Clip "+number+" ready";
+      startBtn.disabled = true;
+      results.innerHTML = "";
 
- let download=document.createElement("a");
- download.href=url;
- download.download="clip-"+number+".webm";
- download.textContent="⬇️ Download Clip "+number;
- download.style.display="block";
- download.style.marginTop="10px";
- download.style.color="#e9b8ff";
+      try {
+        await loadFFmpeg();
 
- box.appendChild(title);
- box.appendChild(download);
+        status.textContent =
+          "Preparing video...\nThis may take time on mobile.";
 
- document.getElementById("clips").appendChild(box);
-}
-</script>
+        const inputName = "input.mp4";
 
+        ffmpeg.FS(
+          "writeFile",
+          inputName,
+          await fetchFile(selectedFile)
+        );
+
+        const totalSeconds = preview.duration;
+        const clipSeconds = durationMinutes * 60;
+        const totalClips = Math.ceil(totalSeconds / clipSeconds);
+
+        for (let i = 0; i < totalClips; i++) {
+          const startTime = i * clipSeconds;
+          const outputName = `clip_${i + 1}.mp4`;
+
+          status.textContent =
+            `Processing clip ${i + 1} of ${totalClips}...\n` +
+            `Start time: ${formatTime(startTime)}`;
+
+          await ffmpeg.run(
+            "-ss",
+            String(startTime),
+            "-i",
+            inputName,
+            "-t",
+            String(clipSeconds),
+            "-c",
+            "copy",
+            "-avoid_negative_ts",
+            "make_zero",
+            outputName
+          );
+
+          const data = ffmpeg.FS("readFile", outputName);
+
+          const blob = new Blob([data.buffer], {
+            type: "video/mp4"
+          });
+
+          const url = URL.createObjectURL(blob);
+
+          const clipBox = document.createElement("div");
+          clipBox.className = "clip";
+
+          clipBox.innerHTML = `
+            <strong>Clip ${i + 1}</strong><br>
+            <a href="${url}" download="${outputName}">
+              ⬇️ Download ${outputName}
+            </a>
+          `;
+
+          results.appendChild(clipBox);
+
+          try {
+            ffmpeg.FS("unlink", outputName);
+          } catch (error) {
+            console.log("Cleanup skipped:", error);
+          }
+        }
+
+        status.textContent =
+          "✅ All clips generated successfully!";
+      } catch (error) {
+        console.error(error);
+
+        status.textContent =
+          "❌ Processing failed.\n\n" +
+          "Possible reasons:\n" +
+          "• Video is too large for your phone\n" +
+          "• Browser memory limitation\n" +
+          "• FFmpeg loading error\n\n" +
+          "Try a shorter video first.";
+      }
+
+      startBtn.disabled = false;
+    });
+
+    function formatTime(seconds) {
+      const minutes = Math.floor(seconds / 60);
+      const remainingSeconds = Math.floor(seconds % 60);
+
+      return (
+        String(minutes).padStart(2, "0") +
+        ":" +
+        String(remainingSeconds).padStart(2, "0")
+      );
+    }
+  </script>
 </body>
 </html>
+
