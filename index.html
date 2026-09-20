@@ -82,11 +82,12 @@ testFFmpeg.addEventListener("click", async function () {
   status.textContent = "Loading FFmpeg engine...";
 
   try {
-    const ffmpeg = FFmpeg.createFFmpeg({
-      log: true,
-      corePath:
-        "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js"
-    });
+    const ffmpeg = createFFmpeg({
+  log: true,
+  mainName: "main",
+  corePath:
+    "https://unpkg.com/@ffmpeg/core-st@0.11.1/dist/ffmpeg-core.js"
+});
 
     await ffmpeg.load();
 
